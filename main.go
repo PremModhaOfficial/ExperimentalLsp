@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 )
@@ -21,6 +22,7 @@ func main() {
 
 	state := analysis.NewState()
 
+	writer := os.Stdout
 	for scanner.Scan() {
 		msg := scanner.Bytes()
 		method, contents, err := rpc.DecodeMessage(msg)
@@ -28,11 +30,11 @@ func main() {
 			logger.Printf("Got an error: %s", err)
 			continue
 		}
-		handleMessage(logger, state, method, contents)
+		handleMessage(logger, writer, state, method, contents)
 	}
 }
 
-func handleMessage(logger *log.Logger, state analysis.State, method string, contents []byte) {
+func handleMessage(logger *log.Logger, writer io.Writer, state analysis.State, method string, contents []byte) {
 	logger.Printf("Received msg with method: %s", method)
 
 	switch method {
@@ -47,9 +49,7 @@ func handleMessage(logger *log.Logger, state analysis.State, method string, cont
 
 		// lets reply
 		msg := lsp.NewInitializeResponse(request.ID)
-		reply := rpc.EncodeMessage(msg)
-		writer := os.Stdout
-		writer.Write([]byte(reply))
+		writeResponce(writer, msg)
 		logger.Println("Sent Reply")
 
 	case "textDocument/didOpen":
@@ -71,10 +71,36 @@ func handleMessage(logger *log.Logger, state analysis.State, method string, cont
 		for _, change := range request.Params.ContentChanges {
 			state.UpdateDocument(request.Params.TextDocument.URI, change.Text)
 		}
+	case "textDocument/hover":
+		var request lsp.HoverRequest
+		if err := json.Unmarshal(contents, &request); err != nil {
+			logger.Printf("TextDocument/hover: %s", err)
+			return
+		}
 
+		// crate responce
+		responce := state.Hover(request.ID, request.Params.TextDocument.URI, request.Params.Position)
+		// write back
+		writeResponce(writer, responce)
+
+	case "textDocument/codeAction":
+		var request lsp.CodeActionRequest
+		if err := json.Unmarshal(contents, &request); err != nil {
+			logger.Printf("TextDocument/codeAction: %s", err)
+			return
+		}
+
+		// crate responce
+		responce := state.TextDocumentCodeAction(request.ID, request.Params.TextDocument.URI, request.Params.Position)
+		// write back
+		writeResponce(writer, responce)
 	}
 }
 
+func writeResponce(writer io.Writer, msg any) {
+	reply := rpc.EncodeMessage(msg)
+	writer.Write([]byte(reply))
+}
 func getLogger(filename string) *log.Logger {
 	logfile, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
