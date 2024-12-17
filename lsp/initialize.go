@@ -25,9 +25,12 @@ type InitializeResult struct {
 
 type ServerInfo struct {
 	Name    string `json:"name"`
-	Virsion string `json:"virsion"`
+	Version string `json:"version"`
 }
-type ServerCapabilities struct{}
+type ServerCapabilities struct {
+	TextDocumentSync int  `json:"textDocumentSync"`
+	HoverProvider    bool `json:"hoverProvider"`
+}
 
 func NewInitializeResponse(id int) InitializeResponse {
 	return InitializeResponse{
@@ -36,10 +39,13 @@ func NewInitializeResponse(id int) InitializeResponse {
 			ID:  &id,
 		},
 		Result: InitializeResult{
-			Capabilities: ServerCapabilities{},
+			Capabilities: ServerCapabilities{
+				TextDocumentSync: 1,
+				HoverProvider:    true,
+			},
 			ServerInfo: ServerInfo{
 				Name:    "Experimental-lsp",
-				Virsion: "0.000.beta-1.final",
+				Version: "0.0.0.0.beta-1.final",
 			},
 		},
 	}
